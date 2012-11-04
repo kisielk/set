@@ -5,9 +5,11 @@
 // Package set provides functions for working with finite sets.
 //
 // All functions in this package require that the types of their Interface arguments match.
+// If the types of the arguments do not match the functions will panic.
 // The concrete type of the return value will be the same as that of the inputs.
 //
 // A type implementing set.Interface must be map, slice, or a struct.
+// Other types will result in a panic when trying to call any of the routines expecting an Interface instance.
 package set
 
 import (
@@ -16,6 +18,9 @@ import (
 )
 
 // A type, typically a collection, that satisfies set.Interface can be used by the routines in this package.
+//
+// The concrete type of x is defined by the implementor of the interface. Calling the functions with a value
+// of a different type will typically result in a panic.
 type Interface interface {
 	// Len is the number of elements in the collection.
 	Len() int
