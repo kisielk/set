@@ -36,6 +36,8 @@ type Interface interface {
 
 	// Values returns a channel that produces all of the values in the collection.
 	// Implementors must close the channel after sending the last value.
+	// Calling Interface.Insert or Interface.Remove or other operations that modify the collection is forbidden
+	// until the channel return by Values has been closed, otherwise the result is undefined.
 	Values() <-chan interface{}
 }
 
