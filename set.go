@@ -1,3 +1,9 @@
+// Package set provides functions for working with finite sets.
+//
+// All functions in this package require that the types of their Interface arguments match.
+// The concrete type of the return value will be the same as that of the inputs.
+//
+// A type implementing set.Interface must be map, slice, or a struct.
 package set
 
 import (
@@ -5,76 +11,108 @@ import (
 	"reflect"
 )
 
+// A type, typically a collection, that satisfies set.Interface can be used by the routines in this package.
 type Interface interface {
+	// Len is the number of elements in the collection.
 	Len() int
+
+	// Contains returns whether the element x is in the collection.
 	Contains(x interface{}) bool
+
+	// Insert inserts a new element in to the collection.
 	Insert(x interface{})
+
+	// Remove removes an element from the collection.
 	Remove(x interface{})
+
+	// Values returns a channel that produces all of the values in the collection.
+	// Implementors must close the channel after sending the last value.
+	Values() <-chan interface{}
 }
 
-type StringSet map[string]bool
-type stringset map[string]bool
+// newSet creates a new set of the same type as s and t, after ensuring they are of the same type.
+func newSet(s, t Interface, capacity int) Interface {
+	sType := reflect.TypeOf(s)
+	tType := reflect.TypeOf(t)
+	if sType != tType {
+		panic(fmt.Sprintf("Set types %s and %s do not match", sType, tType))
+	}
 
-func newSet(s Interface) Interface {
-	t := reflect.TypeOf(s)
-	switch t.Kind() {
+	var r Interface
+	switch sType.Kind() {
 	case reflect.Map:
-		r := reflect.MakeMap(t).Interface().(Interface)
-		return r
+		r = reflect.MakeMap(sType).Interface().(Interface)
+	case reflect.Slice:
+		r = reflect.MakeSlice(sType, 0, capacity).Interface().(Interface)
+	case reflect.Struct:
+		r = reflect.Zero(sType).Interface().(Interface)
 	default:
-		panic(fmt.Sprintf("Unsupported set type: %s", t))
-	}
-	return nil
-}
-
-func Union(s, t stringset) stringset {
-	r := make(stringset, len(s)+len(t))
-	for k := range s {
-		r[k] = true
-	}
-	for k := range t {
-		r[k] = true
+		panic(fmt.Sprintf("Unsupported set type: %s", sType))
 	}
 	return r
 }
 
-func Intersection(s, t stringset) stringset {
-	r := make(stringset)
-	if len(s) < len(t) {
+// Union returns a new set containing all the elements of s and t.
+func Union(s, t Interface) Interface {
+	r := newSet(s, t, s.Len()+t.Len())
+	svals := s.Values()
+	for v := range svals {
+		r.Insert(v)
+	}
+	tvals := t.Values()
+	for v := range tvals {
+		r.Insert(v)
+	}
+	return r
+}
+
+// Intersection returns a new set containing the elements that are in both s and t.
+func Intersection(s, t Interface) Interface {
+	r := newSet(s, t, 0)
+	if s.Len() < t.Len() {
 		t, s = s, t
 	}
-	for k := range s {
-		if _, ok := t[k]; ok {
-			r[k] = true
+	svals := s.Values()
+	for v := range svals {
+		if t.Contains(v) {
+			r.Insert(v)
 		}
 	}
 	return r
 }
 
-func Difference(s, t stringset) stringset {
-	r := make(stringset)
-	for k := range s {
-		if _, ok := t[k]; !ok {
-			r[k] = true
+// Difference returns a new set containing the elements that are in s but not t.
+func Difference(s, t Interface) Interface {
+	r := newSet(s, t, 0)
+	svals := s.Values()
+	for v := range svals {
+		if !t.Contains(v) {
+			r.Insert(v)
 		}
 	}
 	return r
 }
 
-func SymmetricDifference(s, t stringset) stringset {
-	r := make(stringset)
-	for k := range s {
-		if _, ok := t[k]; !ok {
-			r[k] = true
+// SymmetricDifference returns a new set containing the elements in s that are not in t and the elements in t that are not in s.
+func SymmetricDifference(s, t Interface) Interface {
+	r := newSet(s, t, 0)
+	svals := s.Values()
+	for v := range svals {
+		if !t.Contains(v) {
+			r.Insert(v)
 		}
 	}
-	for k := range t {
-		if _, ok := s[k]; !ok {
-			r[k] = true
+	tvals := t.Values()
+	for v := range tvals {
+		if !s.Contains(v) {
+			r.Insert(v)
 		}
 	}
 	return r
 }
+
+// StringSet attaches the methods of Interface to a map[string]bool
+type StringSet map[string]bool
 
 func (s StringSet) Len() int {
 	return len(s)
@@ -91,4 +129,46 @@ func (s StringSet) Insert(x interface{}) {
 
 func (s StringSet) Remove(x interface{}) {
 	delete(s, x.(string))
+}
+
+func (s StringSet) Values() <-chan interface{} {
+	c := make(chan interface{})
+	go func() {
+		for v := range s {
+			c <- v
+		}
+		close(c)
+	}()
+	return c
+}
+
+// IntSet attaches the methods of Interface to a map[int]bool
+type IntSet map[int]bool
+
+func (s IntSet) Len() int {
+	return len(s)
+}
+
+func (s IntSet) Contains(x interface{}) bool {
+	_, ok := s[x.(int)]
+	return ok
+}
+
+func (s IntSet) Insert(x interface{}) {
+	s[x.(int)] = true
+}
+
+func (s IntSet) Remove(x interface{}) {
+	delete(s, x.(int))
+}
+
+func (s IntSet) Values() <-chan interface{} {
+	c := make(chan interface{})
+	go func() {
+		for v := range s {
+			c <- v
+		}
+		close(c)
+	}()
+	return c
 }
