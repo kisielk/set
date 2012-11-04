@@ -1,3 +1,7 @@
+// Copyright 2012 Kamil Kisiel. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
 // Package set provides functions for working with finite sets.
 //
 // All functions in this package require that the types of their Interface arguments match.
